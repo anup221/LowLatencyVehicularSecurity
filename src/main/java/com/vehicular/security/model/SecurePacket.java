@@ -4,19 +4,15 @@ import java.io.Serializable;
 
 public class SecurePacket implements Serializable {
 
-    private String vehicleId;
-    private String timestamp;
-    private String alertType;
+    private final String vehicleId;
+    private final String alertType;
+    private final byte[] encryptedMessage;
+    private final byte[] nonce;
 
-    private byte[] cipherText;
-    private byte[] nonce;
-
-    public SecurePacket(String vehicleId, String timestamp, String alertType,
-                        byte[] cipherText, byte[] nonce) {
+    public SecurePacket(String vehicleId, String alertType, byte[] encryptedMessage, byte[] nonce) {
         this.vehicleId = vehicleId;
-        this.timestamp = timestamp;
         this.alertType = alertType;
-        this.cipherText = cipherText;
+        this.encryptedMessage = encryptedMessage;
         this.nonce = nonce;
     }
 
@@ -24,16 +20,12 @@ public class SecurePacket implements Serializable {
         return vehicleId;
     }
 
-    public String getTimestamp() {
-        return timestamp;
-    }
-
     public String getAlertType() {
         return alertType;
     }
 
-    public byte[] getCipherText() {
-        return cipherText;
+    public byte[] getEncryptedMessage() {
+        return encryptedMessage;
     }
 
     public byte[] getNonce() {

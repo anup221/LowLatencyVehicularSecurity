@@ -8,7 +8,7 @@ import java.security.SecureRandom;
 public class ChaCha20Poly1305Util {
 
     public static byte[] generateNonce() {
-        byte[] nonce = new byte[12]; // Required for Poly1305
+        byte[] nonce = new byte[12];
         new SecureRandom().nextBytes(nonce);
         return nonce;
     }

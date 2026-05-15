@@ -1,62 +1,72 @@
 package com.vehicular.security.sender;
 
-import com.vehicular.security.crypto.ChaCha20Poly1305Util;
+import com.vehicular.security.crypto.*;
 import com.vehicular.security.model.SecurePacket;
-import com.vehicular.security.util.KeyManager;
 import com.vehicular.security.util.NetworkConfig;
 
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.Socket;
-import java.time.LocalDateTime;
+import java.security.KeyPair;
+import java.security.PublicKey;
 import java.util.Scanner;
 
 public class VehicleSender {
 
     public static void main(String[] args) {
 
-        Scanner scanner = new Scanner(System.in);
+        try (
+                Socket socket = new Socket(NetworkConfig.RECEIVER_IP, NetworkConfig.PORT);
+                ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+                ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+                Scanner scanner = new Scanner(System.in)
+        ) {
 
-        try {
-            System.out.println("Enter Vehicle ID:");
+            KeyPair senderKeyPair = ECDHKeyExchange.generateKeyPair();
+
+            out.writeObject(senderKeyPair.getPublic().getEncoded());
+            out.flush();
+
+            byte[] receiverPublicBytes = (byte[]) in.readObject();
+
+            PublicKey receiverPublicKey = ECDHKeyExchange.decodePublicKey(receiverPublicBytes);
+
+            byte[] sharedSecret = ECDHKeyExchange.generateSharedSecret(
+                    senderKeyPair.getPrivate(),
+                    receiverPublicKey
+            );
+
+            byte[] sessionKey = SessionKeyManager.deriveChaChaKey(sharedSecret);
+
+            System.out.println("Secure session established.");
+
+            System.out.print("Enter Vehicle ID: ");
             String vehicleId = scanner.nextLine();
 
-            System.out.println("Enter Alert Type (Accident/Traffic/Roadblock):");
+            System.out.print("Enter Alert Type: ");
             String alertType = scanner.nextLine();
 
-            System.out.println("Enter Emergency Message:");
+            System.out.print("Enter Emergency Message: ");
             String message = scanner.nextLine();
 
             byte[] nonce = ChaCha20Poly1305Util.generateNonce();
 
-            long startTime = System.currentTimeMillis();
-
             byte[] encryptedMessage = ChaCha20Poly1305Util.encrypt(
-                    KeyManager.getSharedKey(),
+                    sessionKey,
                     nonce,
                     message
             );
 
             SecurePacket packet = new SecurePacket(
                     vehicleId,
-                    LocalDateTime.now().toString(),
                     alertType,
                     encryptedMessage,
                     nonce
             );
 
-            Socket socket = new Socket(NetworkConfig.RECEIVER_IP, NetworkConfig.PORT);
-
-            ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-
-            oos.writeObject(packet);
-
-            long endTime = System.currentTimeMillis();
+            out.writeObject(packet);
+            out.flush();
 
             System.out.println("Secure Packet Sent Successfully!");
-            System.out.println("Transmission Time: " + (endTime - startTime) + " ms");
-
-            oos.close();
-            socket.close();
 
         } catch (Exception e) {
             e.printStackTrace();

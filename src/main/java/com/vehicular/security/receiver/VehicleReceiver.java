@@ -1,48 +1,66 @@
 package com.vehicular.security.receiver;
 
-import com.vehicular.security.crypto.ChaCha20Poly1305Util;
+import com.vehicular.security.crypto.*;
 import com.vehicular.security.model.SecurePacket;
-import com.vehicular.security.util.KeyManager;
 import com.vehicular.security.util.NetworkConfig;
 
-import java.io.ObjectInputStream;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.KeyPair;
+import java.security.PublicKey;
 
 public class VehicleReceiver {
 
     public static void main(String[] args) {
-        System.out.println("Vehicle Receiver Started...");
-        System.out.println("Listening on port " + NetworkConfig.PORT);
 
         try (ServerSocket serverSocket = new ServerSocket(NetworkConfig.PORT)) {
 
-            while (true) {
-                Socket socket = serverSocket.accept();
+            System.out.println("Vehicle Receiver Started...");
+            System.out.println("Listening on port " + NetworkConfig.PORT);
 
-                ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
+            try (
+                    Socket socket = serverSocket.accept();
+                    ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+                    ObjectInputStream in = new ObjectInputStream(socket.getInputStream())
+            ) {
 
-                SecurePacket packet = (SecurePacket) ois.readObject();
+                KeyPair receiverKeyPair = ECDHKeyExchange.generateKeyPair();
 
-                String message = ChaCha20Poly1305Util.decrypt(
-                        KeyManager.getSharedKey(),
+                byte[] senderPublicBytes = (byte[]) in.readObject();
+
+                PublicKey senderPublicKey = ECDHKeyExchange.decodePublicKey(senderPublicBytes);
+
+                out.writeObject(receiverKeyPair.getPublic().getEncoded());
+                out.flush();
+
+                byte[] sharedSecret = ECDHKeyExchange.generateSharedSecret(
+                        receiverKeyPair.getPrivate(),
+                        senderPublicKey
+                );
+
+                byte[] sessionKey = SessionKeyManager.deriveChaChaKey(sharedSecret);
+
+                System.out.println("Secure session established.");
+
+                SecurePacket packet = (SecurePacket) in.readObject();
+
+                String decryptedMessage = ChaCha20Poly1305Util.decrypt(
+                        sessionKey,
                         packet.getNonce(),
-                        packet.getCipherText()
+                        packet.getEncryptedMessage()
                 );
 
                 System.out.println("\n===== SECURE ALERT RECEIVED =====");
                 System.out.println("Vehicle ID: " + packet.getVehicleId());
-                System.out.println("Timestamp : " + packet.getTimestamp());
                 System.out.println("Alert Type: " + packet.getAlertType());
-                System.out.println("Message   : " + message);
-                System.out.println("=================================\n");
+                System.out.println("Message   : " + decryptedMessage);
+                System.out.println("=================================");
 
-                socket.close();
             }
 
         } catch (Exception e) {
-            System.out.println("Authentication Failed or Packet Rejected!");
-            e.printStackTrace();
+            System.out.println("Authentication Failed! Packet Rejected.");
         }
     }
 }

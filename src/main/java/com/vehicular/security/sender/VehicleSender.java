@@ -23,6 +23,10 @@ public class VehicleSender {
 
             KeyPair senderKeyPair = ECDHKeyExchange.generateKeyPair();
 
+            System.out.println("=== ECDH SENDER KEYS GENERATED ===");
+            System.out.println("Private Key: " + java.util.Base64.getEncoder().encodeToString(senderKeyPair.getPrivate().getEncoded()));
+            System.out.println("Public Key:  " + java.util.Base64.getEncoder().encodeToString(senderKeyPair.getPublic().getEncoded()) + "\n");
+
             out.writeObject(senderKeyPair.getPublic().getEncoded());
             out.flush();
 
@@ -39,34 +43,37 @@ public class VehicleSender {
 
             System.out.println("Secure session established.");
 
-            System.out.print("Enter Vehicle ID: ");
-            String vehicleId = scanner.nextLine();
+            while (true) {
+                System.out.print("\nEnter Vehicle ID (or 'exit' to quit): ");
+                String vehicleId = scanner.nextLine();
+                if ("exit".equalsIgnoreCase(vehicleId)) break;
 
-            System.out.print("Enter Alert Type: ");
-            String alertType = scanner.nextLine();
+                System.out.print("Enter Alert Type: ");
+                String alertType = scanner.nextLine();
 
-            System.out.print("Enter Emergency Message: ");
-            String message = scanner.nextLine();
+                System.out.print("Enter Emergency Message: ");
+                String message = scanner.nextLine();
 
-            byte[] nonce = ChaCha20Poly1305Util.generateNonce();
+                byte[] nonce = ChaCha20Poly1305Util.generateNonce();
 
-            byte[] encryptedMessage = ChaCha20Poly1305Util.encrypt(
-                    sessionKey,
-                    nonce,
-                    message
-            );
+                byte[] encryptedMessage = ChaCha20Poly1305Util.encrypt(
+                        sessionKey,
+                        nonce,
+                        message
+                );
 
-            SecurePacket packet = new SecurePacket(
-                    vehicleId,
-                    alertType,
-                    encryptedMessage,
-                    nonce
-            );
+                SecurePacket packet = new SecurePacket(
+                        vehicleId,
+                        alertType,
+                        encryptedMessage,
+                        nonce
+                );
 
-            out.writeObject(packet);
-            out.flush();
+                out.writeObject(packet);
+                out.flush();
 
-            System.out.println("Secure Packet Sent Successfully!");
+                System.out.println("Secure Packet Sent Successfully!");
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
